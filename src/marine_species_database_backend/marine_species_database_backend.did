@@ -1,0 +1,58 @@
+type Error = variant {
+  ValidationFailed : record { content : text };
+  InvalidInput;
+  NotFound : record { msg : text };
+};
+type MarineSpecie = record {
+  id : nat64;
+  updated_at : opt nat64;
+  taxonomy_id : nat64;
+  name : text;
+  habitat : text;
+  created_at : nat64;
+  conservation_status : text;
+};
+type MarineSpeciePayload = record {
+  taxonomy_id : nat64;
+  name : text;
+  habitat : text;
+  conservation_status : text;
+};
+type Result = variant { Ok : MarineSpecie; Err : Error };
+type Result_1 = variant { Ok : Taxonomy; Err : Error };
+type Result_2 = variant { Ok : vec MarineSpecie; Err : Error };
+type Result_3 = variant { Ok : vec Taxonomy; Err : Error };
+type Taxonomy = record {
+  id : nat64;
+  updated_at : opt nat64;
+  order : text;
+  class : text;
+  created_at : nat64;
+  genus : text;
+  species : text;
+  family : text;
+  kingdom : text;
+  phylum : text;
+};
+type TaxonomyPayload = record {
+  order : text;
+  class : text;
+  genus : text;
+  species : text;
+  family : text;
+  kingdom : text;
+  phylum : text;
+};
+service : {
+  add_marinespecie : (MarineSpeciePayload) -> (Result);
+  add_taxonomy : (TaxonomyPayload) -> (Result_1);
+  delete_marinespecie : (nat64) -> (Result);
+  delete_taxonomy : (nat64) -> (Result_1);
+  get_all_marinespecie : () -> (Result_2) query;
+  get_all_taxonomy : () -> (Result_3) query;
+  get_marinespecie : (nat64) -> (Result) query;
+  get_marinespecie_by_conservation_status : (text) -> (Result_2) query;
+  get_taxonomy : (nat64) -> (Result_1) query;
+  update_marinespecie : (nat64, MarineSpeciePayload) -> (Result);
+  update_taxonomy : (nat64, TaxonomyPayload) -> (Result_1);
+}

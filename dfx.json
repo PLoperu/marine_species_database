@@ -1,0 +1,30 @@
+{
+  "canisters": {
+    "marine_species_database_backend": {
+      "candid": "src/marine_species_database_backend/marine_species_database_backend.did",
+      "package": "marine_species_database_backend",
+      "type": "rust"
+    },
+    "marine_species_database_frontend": {
+      "dependencies": [
+        "marine_species_database_backend"
+      ],
+      "frontend": {
+        "entrypoint": "src/marine_species_database_frontend/src/index.html"
+      },
+      "source": [
+        "src/marine_species_database_frontend/assets",
+        "dist/marine_species_database_frontend/"
+      ],
+      "type": "assets"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

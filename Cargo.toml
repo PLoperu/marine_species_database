@@ -1,0 +1,4 @@
+[workspace]
+members = [
+    "src/marine_species_database_backend",
+]
