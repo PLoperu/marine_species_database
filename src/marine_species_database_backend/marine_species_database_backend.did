@@ -2,6 +2,7 @@ type Error = variant {
   ValidationFailed : record { content : text };
   InvalidInput;
   NotFound : record { msg : text };
+  NotResearcher;
 };
 type MarineSpecie = record {
   id : nat64;
@@ -10,6 +11,7 @@ type MarineSpecie = record {
   name : text;
   habitat : text;
   created_at : nat64;
+  researcher : text;
   conservation_status : text;
 };
 type MarineSpeciePayload = record {
@@ -29,6 +31,7 @@ type Taxonomy = record {
   class : text;
   created_at : nat64;
   genus : text;
+  researcher : text;
   species : text;
   family : text;
   kingdom : text;

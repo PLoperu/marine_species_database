@@ -2,6 +2,7 @@
 extern crate serde;
 use candid::{Decode, Encode};
 use ic_cdk::api::time;
+use ic_cdk::caller;
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{BoundedStorable, Cell, DefaultMemoryImpl, StableBTreeMap, Storable};
 use validator::Validate;
@@ -14,6 +15,7 @@ type IdCell = Cell<u64, Memory>;
 #[derive(candid::CandidType, Clone, Serialize, Deserialize)]
 struct Taxonomy {
     id:u64,
+    researcher: String,
     kingdom:String,
     phylum:String,
     class:String,
@@ -28,6 +30,7 @@ struct Taxonomy {
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct MarineSpecie {
     id: u64,
+    researcher: String,
     name: String,
     habitat:String,
     taxonomy_id: u64,//Reference to Taxonomy by Id
@@ -159,10 +162,29 @@ fn get_taxonomy(id: u64) -> Result<Taxonomy, Error> {
 fn _get_taxonomy(id: &u64) -> Option<Taxonomy> {
     TAXONOMY_STR.with(|service| service.borrow().get(id))
 }
+// Helper function to check whether the caller is the research for a taxonomy
+fn is_caller_taxonomy_research(taxonomy: &Taxonomy) -> Result<(), Error> {
+    if taxonomy.researcher != caller().to_string(){
+        return Err(Error::NotResearcher)
+    }else{
+        Ok(())
+    }
+}
+// Helper function to check whether the caller is the research for a marine specie
+fn is_caller_marinespecie_research(marinespecie: &MarineSpecie) -> Result<(), Error> {
+    if marinespecie.researcher != caller().to_string(){
+        return Err(Error::NotResearcher)
+    }else{
+        Ok(())
+    }
+}
 
+// Function to store a taxonomy
 #[ic_cdk::update]
 fn add_taxonomy(taxonomy_payload: TaxonomyPayload) -> Result<Taxonomy, Error> {
+    // Check and validate the payload
     let check_payload = taxonomy_payload.validate();
+    // if there are any validation errors, return them in the string format
     if check_payload.is_err() {
         return Err(Error::ValidationFailed {
             content: check_payload.err().unwrap().to_string(),
@@ -176,6 +198,7 @@ fn add_taxonomy(taxonomy_payload: TaxonomyPayload) -> Result<Taxonomy, Error> {
         .expect("cannot increment id counter");
     let taxonomy = Taxonomy { 
         id,
+        researcher: caller().to_string(),
          kingdom: taxonomy_payload.kingdom,
          phylum: taxonomy_payload.phylum,
          class: taxonomy_payload.class,
@@ -186,10 +209,12 @@ fn add_taxonomy(taxonomy_payload: TaxonomyPayload) -> Result<Taxonomy, Error> {
         created_at: time(), 
         updated_at: None 
     } ;
+    // save taxonomy
     do_insert_taxonomy(&taxonomy);
     Ok(taxonomy)
 }
 
+// Function to update a taxonomy stored on the canister
 #[ic_cdk::update]
 fn update_taxonomy(id: u64, taxonomy_payload: TaxonomyPayload) -> Result<Taxonomy, Error> {
     let check_payload = taxonomy_payload.validate();
@@ -200,6 +225,9 @@ fn update_taxonomy(id: u64, taxonomy_payload: TaxonomyPayload) -> Result<Taxonom
     }
     match TAXONOMY_STR.with(|service| service.borrow().get(&id)) {
         Some(mut taxonomy) => {
+            // checks if caller is the researcher of the taxonomy
+            is_caller_taxonomy_research(&taxonomy)?;
+            // update taxonomy with the new values
             taxonomy.kingdom = taxonomy_payload.kingdom;
             taxonomy.phylum =   taxonomy_payload.phylum;
             taxonomy.class =    taxonomy_payload.class;
@@ -208,6 +236,7 @@ fn update_taxonomy(id: u64, taxonomy_payload: TaxonomyPayload) -> Result<Taxonom
             taxonomy.genus =    taxonomy_payload.genus;
             taxonomy.species =  taxonomy_payload.species;
             taxonomy.updated_at = Some(time());
+            // save updated taxonomy
             do_insert_taxonomy(&taxonomy);
             Ok(taxonomy)
         }
@@ -229,8 +258,15 @@ fn do_insert_taxonomy(taxonomy: &Taxonomy) {
     });
 }
 
+// Function to delete a taxonomy
 #[ic_cdk::update]
 fn delete_taxonomy(id: u64) -> Result<Taxonomy, Error> {
+    // Get taxonomy from the canister's storage, otherwise return an error
+    let taxonomy = _get_taxonomy(&id).ok_or_else(|| Error::NotFound {
+         msg: format!("Taxonomy with id={} not found", id)  
+        })?;
+    // checks if caller is the researcher of the taxonomy
+    is_caller_taxonomy_research(&taxonomy)?;
     match TAXONOMY_STR.with(|service| service.borrow_mut().remove(&id)) {
         Some(taxonomy) => Ok(taxonomy),
         None => Err(Error::NotFound {
@@ -244,6 +280,7 @@ fn delete_taxonomy(id: u64) -> Result<Taxonomy, Error> {
 
 
 // Marine Specie 
+
 
 #[ic_cdk::query]
 fn get_all_marinespecie() -> Result<Vec<MarineSpecie>, Error> {
@@ -299,10 +336,12 @@ fn get_marinespecie_by_conservation_status(conservation_status: String) -> Resul
     }
 }
 
-
+// Function to add marine specie to the canister
 #[ic_cdk::update]
 fn add_marinespecie(marinespecie_payload: MarineSpeciePayload) -> Result<MarineSpecie, Error> {
+    // Validate and check the values of the payload
     let check_payload = marinespecie_payload.validate();
+    // if there are any validation errors, return them in the string format
     if check_payload.is_err() {
         return Err(Error::ValidationFailed {
             content: check_payload.err().unwrap().to_string(),
@@ -317,6 +356,7 @@ fn add_marinespecie(marinespecie_payload: MarineSpeciePayload) -> Result<MarineS
 
     let marinespecie = MarineSpecie { 
         id,
+        researcher: caller().to_string(),
         name: marinespecie_payload.name,
         habitat: marinespecie_payload.habitat,
         taxonomy_id: marinespecie_payload.taxonomy_id,
@@ -324,13 +364,17 @@ fn add_marinespecie(marinespecie_payload: MarineSpeciePayload) -> Result<MarineS
         created_at: time(),
         updated_at: None
     };
+    // save marine specie
     do_insert_marinespecie(&marinespecie);
     Ok(marinespecie)
 }
 
+// Function to update marine specie
 #[ic_cdk::update]
 fn update_marinespecie(id: u64, marinespecie_payload: MarineSpeciePayload) -> Result<MarineSpecie, Error> {
+    // Validate and check payload for any values that do not match the conditions set
     let check_payload = marinespecie_payload.validate();
+    // if there are any validation errors, return them in the string format
     if check_payload.is_err() {
         return Err(Error::ValidationFailed {
             content: check_payload.err().unwrap().to_string(),
@@ -338,11 +382,13 @@ fn update_marinespecie(id: u64, marinespecie_payload: MarineSpeciePayload) -> Re
     }
     match MARINESPECIE_STR.with(|service| service.borrow().get(&id)) {
         Some(mut marinespecie) => {
+            is_caller_marinespecie_research(&marinespecie)?;
             marinespecie.name = marinespecie_payload.name;
             marinespecie.habitat = marinespecie_payload.habitat;
             marinespecie.taxonomy_id = marinespecie_payload.taxonomy_id;
             marinespecie.conservation_status = marinespecie_payload.conservation_status;
             marinespecie.updated_at = Some(time());
+            // save updated marine specie
             do_insert_marinespecie(&marinespecie);
             Ok(marinespecie)
         }
@@ -356,8 +402,15 @@ fn update_marinespecie(id: u64, marinespecie_payload: MarineSpeciePayload) -> Re
 fn do_insert_marinespecie(marinespecie: &MarineSpecie) {
     MARINESPECIE_STR.with(|service| service.borrow_mut().insert(marinespecie.id, marinespecie.clone()));
 }
+// Function to delete marine specie
 #[ic_cdk::update]
 fn delete_marinespecie(id: u64) -> Result<MarineSpecie, Error> {
+    // Get marine specie from the canister's storage, if not found, return an error
+    let marinespecie = _get_marinespecie(&id).ok_or_else(|| Error::NotFound {
+        msg: format!("Marine specie with id={} not found", id)  
+       })?;
+    // Check whether the caller is the researcher for the marine specie, if false, return an error
+    is_caller_marinespecie_research(&marinespecie)?;
     match MARINESPECIE_STR.with(|service| service.borrow_mut().remove(&id)) {
         Some(marinespecie) => Ok(marinespecie),
         None => Err(Error::NotFound {
@@ -372,7 +425,8 @@ fn delete_marinespecie(id: u64) -> Result<MarineSpecie, Error> {
 enum Error {
     NotFound { msg: String },
     ValidationFailed { content: String },
-    InvalidInput 
+    InvalidInput,
+    NotResearcher
 }
 
 // need this to generate candid
